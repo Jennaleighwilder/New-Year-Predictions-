@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Fortune Machine</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+html,body{width:100%;height:100%;overflow:hidden;background:#000;font-family:Georgia,serif;color:#f3f0e7}
+
+#blackout{position:fixed;inset:0;background:#000;z-index:999;opacity:1;transition:opacity 1.2s ease;pointer-events:none}
+#blackout.hide{opacity:0}
+
+.screen{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;opacity:0;transition:opacity 1s ease,filter 1s ease,transform 1s ease;filter:blur(0);transform:scale(1);will-change:opacity,filter,transform}
+.screen.active{display:flex;opacity:1;transform:scale(1)}
+.screen.entering{filter:blur(14px) brightness(1.25);transform:scale(1.02)}
+.screen.exiting{opacity:0;filter:blur(22px) brightness(0.6);transform:scale(0.98)}
+
+.bg{position:absolute;inset:0;background-size:cover;background-position:center}
+.light-flood{position:absolute;inset:0;background:radial-gradient(circle,rgba(255,255,255,0.45),rgba(255,255,255,0));opacity:0;pointer-events:none;transition:opacity 0.35s ease-out}
+.scene.flash .light-flood{opacity:0.85}
+
+#scene-hypnosis .bg{inset:-20%;animation:hypnoSpin 20s linear infinite}
+@keyframes hypnoSpin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+.hypno-overlay{position:absolute;inset:0;background:radial-gradient(circle at center,transparent 10%,rgba(0,0,0,0.6) 60%,rgba(0,0,0,0.95) 100%)}
+.begin-btn{position:relative;z-index:5;background:#000;color:#fff;border:2px solid #444;padding:24px 70px;font-family:Georgia,serif;font-size:1.4rem;letter-spacing:8px;cursor:pointer;transition:all 0.4s ease;text-transform:uppercase}
+.begin-btn:hover{background:#111;border-color:#888;box-shadow:0 0 60px rgba(255,255,255,0.25);transform:scale(1.08)}
+
+.curtain-container{position:absolute;inset:0;display:flex;overflow:hidden}
+.curtain{flex:1;background-size:cover;transition:transform 2s cubic-bezier(0.4,0,0.2,1)}
+.curtain-left{background-position:left center}
+.curtain-right{background-position:right center;transform:scaleX(-1)}
+.curtains-open .curtain-left{transform:translateX(-100%)}
+.curtains-open .curtain-right{transform:translateX(100%) scaleX(-1)}
+.curtain-text{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:5;opacity:0;transition:opacity 0.8s ease}
+.curtain-text.visible{opacity:1}
+.curtain-text h2{font-size:2.4rem;color:#d4af87;text-shadow:0 0 40px rgba(212,175,135,0.6),0 4px 20px rgba(0,0,0,0.8);letter-spacing:5px;text-align:center;padding:0 20px}
+
+.question-overlay{position:absolute;inset:0;background:linear-gradient(to bottom,rgba(10,5,5,0.82) 0%,rgba(10,5,5,0.9) 100%)}
+.question-content{position:relative;z-index:5;max-width:700px;padding:40px;text-align:center}
+.q-label{font-size:0.85rem;color:#d4af87;letter-spacing:5px;margin-bottom:20px;opacity:0.9}
+.q-text{font-size:1.6rem;line-height:1.65;margin-bottom:45px;font-style:italic}
+.choices{display:flex;flex-direction:column;gap:18px}
+.choice-btn{background:rgba(42,10,10,0.85);border:1px solid rgba(212,175,135,0.35);color:#e8e0d8;padding:24px 28px;font-family:Georgia,serif;font-size:1.15rem;line-height:1.5;cursor:pointer;transition:all 0.4s ease;text-align:left}
+.choice-btn:hover{background:rgba(139,111,71,0.3);border-color:#d4af87;transform:translateX(10px);box-shadow:0 0 35px rgba(212,175,135,0.25)}
+.choice-btn strong{color:#d4af87;display:block;margin-bottom:6px;font-size:1.2rem}
+.q-dots{display:flex;justify-content:center;gap:12px;margin-top:40px}
+.dot{width:11px;height:11px;border-radius:50%;background:rgba(212,175,135,0.15);border:1px solid rgba(212,175,135,0.4);transition:all 0.3s ease}
+.dot.active{background:#d4af87;box-shadow:0 0 12px #d4af87}
+.dot.complete{background:rgba(212,175,135,0.5)}
+.back-btn{position:absolute;top:25px;left:25px;background:transparent;border:1px solid rgba(212,175,135,0.3);color:#d4af87;padding:10px 20px;font-size:0.85rem;letter-spacing:2px;cursor:pointer;opacity:0.7;transition:all 0.3s ease;z-index:20}
+.back-btn:hover{opacity:1;border-color:#d4af87}
+
+#scene-processing{background:#0a0505}
+.processing-content{text-align:center}
+.processing-content h3{font-size:1.8rem;color:#d4af87;letter-spacing:4px;margin-bottom:30px;animation:pulse 1.5s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:0.6}50%{opacity:1}}
+.progress-bar{width:300px;height:4px;background:rgba(212,175,135,0.2);border-radius:2px;overflow:hidden}
+.progress-fill{height:100%;width:0%;background:linear-gradient(90deg,#d4af87,#f0d4a8);transition:width 1.5s ease-out}
+
+.result-overlay{position:absolute;inset:0;background:radial-gradient(ellipse at center,rgba(10,5,5,0.5) 0%,rgba(10,5,5,0.92) 100%)}
+.result-content{position:relative;z-index:5;max-width:600px;padding:50px 40px;text-align:center;background:rgba(12,6,6,0.9);border:1px solid rgba(212,175,135,0.35);box-shadow:0 0 80px rgba(212,175,135,0.18)}
+.result-badge{font-size:0.75rem;color:#d4af87;letter-spacing:4px;margin-bottom:15px;opacity:0.75}
+.result-title{font-size:2.4rem;color:#f0d4a8;letter-spacing:4px;margin-bottom:35px;text-shadow:0 0 40px rgba(212,175,135,0.5)}
+.result-lines{text-align:left;margin-bottom:40px}
+.result-lines div{font-size:1.1rem;line-height:1.7;margin-bottom:18px;padding-left:16px;border-left:2px solid rgba(212,175,135,0.25)}
+.result-lines .hit{color:#d4af87;font-style:italic;font-size:1.2rem;border-left-color:#d4af87}
+.result-actions{display:flex;gap:16px;justify-content:center;flex-wrap:wrap}
+.result-btn{background:rgba(212,175,135,0.1);border:1px solid #d4af87;color:#d4af87;padding:14px 28px;font-size:0.9rem;letter-spacing:2px;cursor:pointer;transition:all 0.3s ease}
+.result-btn:hover{background:rgba(212,175,135,0.25);transform:translateY(-3px)}
+.result-btn.primary{background:#d4af87;color:#0a0505}
+.result-btn.primary:hover{background:#f0d4a8}
+
+.audio-toggle{position:fixed;bottom:22px;right:22px;background:rgba(0,0,0,0.6);border:1px solid rgba(212,175,135,0.35);color:#d4af87;width:46px;height:46px;border-radius:50%;cursor:pointer;z-index:1000;display:flex;align-items:center;justify-content:center;font-size:1.2rem;transition:all 0.3s ease}
+.audio-toggle:hover{border-color:#d4af87;background:rgba(212,175,135,0.15)}
+
+@media(max-width:650px){
+.q-text{font-size:1.3rem}
+.choice-btn{font-size:1rem;padding:18px 20px}
+.result-title{font-size:1.9rem}
+.result-content{padding:30px 22px;margin:15px}
+.curtain-text h2{font-size:1.8rem}
+.begin-btn{padding:20px 50px;font-size:1.1rem}
+}
+</style>
+</head>
+<body>
+
+<div id="blackout"></div>
+
+<div id="scene-hypnosis" class="screen active">
+  <div class="bg" id="spiralBg"></div>
+  <div class="hypno-overlay"></div>
+  <button class="begin-btn" id="btnBegin">BEGIN</button>
+</div>
+
+<div id="scene-curtains" class="screen">
+  <div class="curtain-container" id="curtainContainer">
+    <div class="curtain curtain-left" id="curtainLeft"></div>
+    <div class="curtain curtain-right" id="curtainRight"></div>
+  </div>
+  <div class="curtain-text" id="curtainText">
+    <h2>Answer Three Questions</h2>
+  </div>
+  <div class="light-flood"></div>
+</div>
+
+<div id="scene-question" class="screen">
+  <div class="bg" id="machineBg"></div>
+  <div class="question-overlay"></div>
+  <button class="back-btn" id="btnBack">BACK</button>
+  <div class="question-content">
+    <div class="q-label" id="qLabel">QUESTION 01</div>
+    <p class="q-text" id="qText"></p>
+    <div class="choices">
+      <button class="choice-btn" id="choiceA"></button>
+      <button class="choice-btn" id="choiceB"></button>
+    </div>
+    <div class="q-dots">
+      <div class="dot" id="dot1"></div>
+      <div class="dot" id="dot2"></div>
+      <div class="dot" id="dot3"></div>
+    </div>
+  </div>
+  <div class="light-flood"></div>
+</div>
+
+<div id="scene-processing" class="screen">
+  <div class="processing-content">
+    <h3>Reading Your Fortune...</h3>
+    <div class="progress-bar">
+      <div class="progress-fill" id="progressFill"></div>
+    </div>
+  </div>
+  <div class="light-flood"></div>
+</div>
+
+<div id="scene-result" class="screen">
+  <div class="bg" id="cardBg"></div>
+  <div class="result-overlay"></div>
+  <div class="result-content">
+    <div class="result-badge">YOUR 2026 FORTUNE</div>
+    <h1 class="result-title" id="resTitle"></h1>
+    <div class="result-lines" id="resLines"></div>
+    <div class="result-actions">
+      <button class="result-btn" id="btnAgain">Ask Again</button>
+      <button class="result-btn primary" id="btnFull">Get Full Report</button>
+    </div>
+  </div>
+  <div class="light-flood"></div>
+</div>
+
+<button class="audio-toggle" id="audioToggle">&#128266;</button>
+
+<script>
+var FULL_REPORT_URL = "https://jennaleighwilder.github.io/Soul-Mapping-/";
+
+var audioCtx = null;
+var audioEnabled = true;
+
+function initAudio() {
+  if (audioCtx) return;
+  try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e) {}
+}
+
+function playChime() {
+  if (!audioCtx || !audioEnabled) return;
+  var t = audioCtx.currentTime;
+  [740, 988, 1480].forEach(function(f, i) {
+    var o = audioCtx.createOscillator();
+    var g = audioCtx.createGain();
+    o.type = "sine";
+    o.frequency.setValueAtTime(f, t + i * 0.02);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.1, t + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.6);
+    o.connect(g).connect(audioCtx.destination);
+    o.start(t + i * 0.02);
+    o.stop(t + 0.65);
+  });
+}
+
+function playClick() {
+  if (!audioCtx || !audioEnabled) return;
+  var t = audioCtx.currentTime;
+  var o = audioCtx.createOscillator();
+  var g = audioCtx.createGain();
+  o.type = "triangle";
+  o.frequency.setValueAtTime(520, t);
+  o.frequency.exponentialRampToValueAtTime(180, t + 0.08);
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(0.12, t + 0.01);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + 0.12);
+  o.connect(g).connect(audioCtx.destination);
+  o.start(t);
+  o.stop(t + 0.14);
+}
+
+function playDrum() {
+  if (!audioCtx || !audioEnabled) return;
+  var t = audioCtx.currentTime;
+  var bufferSize = audioCtx.sampleRate * 0.18;
+  var buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+  var data = buffer.getChannelData(0);
+  for (var i = 0; i < bufferSize; i++) { data[i] = (Math.random() * 2 - 1) * (1 - i / bufferSize); }
+  var noise = audioCtx.createBufferSource();
+  noise.buffer = buffer;
+  var bp = audioCtx.createBiquadFilter();
+  bp.type = "bandpass";
+  bp.frequency.setValueAtTime(180, t);
+  bp.Q.setValueAtTime(0.9, t);
+  var g = audioCtx.createGain();
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(0.2, t + 0.01);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + 0.16);
+  noise.connect(bp).connect(g).connect(audioCtx.destination);
+  noise.start(t);
+  noise.stop(t + 0.18);
+  var o = audioCtx.createOscillator();
+  var g2 = audioCtx.createGain();
+  o.type = "sine";
+  o.frequency.setValueAtTime(62, t);
+  g2.gain.setValueAtTime(0.0001, t);
+  g2.gain.exponentialRampToValueAtTime(0.1, t + 0.01);
+  g2.gain.exponentialRampToValueAtTime(0.0001, t + 0.18);
+  o.connect(g2).connect(audioCtx.destination);
+  o.start(t);
+  o.stop(t + 0.2);
+}
+
+function bindTap(el, fn) {
+  el.addEventListener("pointerup", function(e) {
+    e.preventDefault();
+    fn();
+  });
+}
+
+var activeScene = null;
+var screens = {
+  hypnosis: document.getElementById("scene-hypnosis"),
+  curtains: document.getElementById("scene-curtains"),
+  question: document.getElementById("scene-question"),
+  processing: document.getElementById("scene-processing"),
+  result: document.getElementById("scene-result")
+};
+
+function setScreen(name, flash) {
+  if (activeScene) {
+    activeScene.classList.add("exiting");
+    activeScene.classList.remove("active");
+  }
+  var next = screens[name];
+  next.classList.add("active", "entering");
+  if (flash) {
+    next.classList.add("flash");
+    setTimeout(function() { next.classList.remove("flash"); }, 420);
+  }
+  setTimeout(function() {
+    next.classList.remove("entering");
+    if (activeScene) activeScene.classList.remove("exiting");
+    activeScene = next;
+  }, 1000);
+}
+
+var questions = [
+  {
+    label: "QUESTION 01",
+    text: "It is the New Year, and you are at a crossroads. What are you really hoping for?",
+    A: { strong: "To be chosen.", rest: "Someone shows up. Commits. Decides. Picks you without hesitation." },
+    B: { strong: "To choose yourself.", rest: "You stop waiting. Stop adjusting. And move forward on your own terms." }
+  },
+  {
+    label: "QUESTION 02",
+    text: "When things are on the line and you do not have time to be perfect, what do you usually do?",
+    A: { strong: "You manage the situation.", rest: "You bend, edit, or withhold just enough to keep things from blowing up." },
+    B: { strong: "You say it straight.", rest: "Even if it costs you the job, the relationship, or the room." }
+  },
+  {
+    label: "QUESTION 03",
+    text: "When you imagine the year ahead, what are you not willing to sacrifice - no matter what?",
+    A: { strong: "The people you care about.", rest: "You will not win if it means losing them." },
+    B: { strong: "Yourself.", rest: "You will not keep abandoning your own needs to keep the peace." }
+  }
+];
+
+var outcomes = {
+  "A-A-A": {
+    title: "THE PROTECTOR",
+    lines: [
+      { cls: "hit", text: "You do not fear effort. You fear collateral damage." },
+      { text: "In 2026, your default move is containment: keep it together, keep it calm, keep everyone afloat." },
+      { text: "Your risk: you confuse peace with safety - and carry the cost in silence." },
+      { text: "Your leverage: choose one place this year where you refuse to manage other people's reactions." }
+    ]
+  },
+  "A-A-B": {
+    title: "THE NEGOTIATOR",
+    lines: [
+      { cls: "hit", text: "You can compromise without disappearing - until you cannot." },
+      { text: "In 2026, you will try to engineer the outcome while keeping your dignity intact." },
+      { text: "Your risk: you keep re-opening the same deal with yourself." },
+      { text: "Your leverage: decide your no in advance - before the moment asks for it." }
+    ]
+  },
+  "A-B-A": {
+    title: "THE LOYAL BURNER",
+    lines: [
+      { cls: "hit", text: "Your honesty is a match. Your loyalty decides where it lands." },
+      { text: "In 2026, the truth comes out fast - but you will not throw your people under the bus to prove a point." },
+      { text: "Your risk: you scorch the wrong room when you are hurt." },
+      { text: "Your leverage: aim your fire at the real issue, not the nearest target." }
+    ]
+  },
+  "A-B-B": {
+    title: "THE WALKAWAY",
+    lines: [
+      { cls: "hit", text: "You want to be chosen - but you refuse to beg." },
+      { text: "In 2026, you will name what is real, and if it is not, you are gone." },
+      { text: "Your risk: you leave before the repair is even possible." },
+      { text: "Your leverage: learn the difference between not safe and not comfortable." }
+    ]
+  },
+  "B-A-A": {
+    title: "THE QUIET OPERATOR",
+    lines: [
+      { cls: "hit", text: "You move first. You just do not announce it." },
+      { text: "In 2026, you will make changes quietly - but you still protect the relationships that matter." },
+      { text: "Your risk: you become the invisible engine for everyone else's life." },
+      { text: "Your leverage: let someone feel the consequence of their own choices." }
+    ]
+  },
+  "B-A-B": {
+    title: "THE STRATEGIST",
+    lines: [
+      { cls: "hit", text: "You are done drifting. You want results." },
+      { text: "In 2026, you will optimize the path - and prioritize your needs without apologizing for existing." },
+      { text: "Your risk: you harden into fine, even when you are not." },
+      { text: "Your leverage: do not weaponize self-reliance. Use it, then rest." }
+    ]
+  },
+  "B-B-A": {
+    title: "THE BRIDGE BURNER",
+    lines: [
+      { cls: "hit", text: "You tell the truth - but you still care who gets hurt." },
+      { text: "In 2026, you will cut through the nonsense quickly, but you will keep your real ones close." },
+      { text: "Your risk: you become the hammer and start seeing nails everywhere." },
+      { text: "Your leverage: make one repair before you light the match." }
+    ]
+  },
+  "B-B-B": {
+    title: "THE CLEAN CUT",
+    lines: [
+      { cls: "hit", text: "Your integrity is not negotiable. Neither is your peace." },
+      { text: "In 2026, you will speak plainly, accept fallout, and stop performing stability for other people." },
+      { text: "Your risk: you mistake solitude for safety." },
+      { text: "Your leverage: choose one person who earns access - and let them in." }
+    ]
+  }
+};
+
+var answers = { q1: null, q2: null, q3: null };
+var qIndex = 0;
+
+function renderQuestion(idx) {
+  qIndex = idx;
+  var q = questions[idx];
+  document.getElementById("qLabel").textContent = q.label;
+  document.getElementById("qText").textContent = q.text;
+  document.getElementById("choiceA").innerHTML = "<strong>" + q.A.strong + "</strong>" + q.A.rest;
+  document.getElementById("choiceB").innerHTML = "<strong>" + q.B.strong + "</strong>" + q.B.rest;
+  document.getElementById("dot1").className = "dot" + (idx === 0 ? " active" : (idx > 0 ? " complete" : ""));
+  document.getElementById("dot2").className = "dot" + (idx === 1 ? " active" : (idx > 1 ? " complete" : ""));
+  document.getElementById("dot3").className = "dot" + (idx === 2 ? " active" : "");
+  document.getElementById("btnBack").style.visibility = (idx === 0) ? "hidden" : "visible";
+}
+
+function choose(letter) {
+  playClick();
+  answers["q" + (qIndex + 1)] = letter;
+  if (qIndex < 2) {
+    renderQuestion(qIndex + 1);
+  } else {
+    setScreen("processing", true);
+    playDrum();
+    document.getElementById("progressFill").style.width = "0%";
+    setTimeout(function() { document.getElementById("progressFill").style.width = "100%"; }, 50);
+    setTimeout(function() {
+      var key = answers.q1 + "-" + answers.q2 + "-" + answers.q3;
+      renderResult(key);
+      playChime();
+      setScreen("result", true);
+    }, 1800);
+  }
+}
+
+function renderResult(key) {
+  var out = outcomes[key] || outcomes["A-A-A"];
+  document.getElementById("resTitle").textContent = out.title;
+  var lines = document.getElementById("resLines");
+  lines.innerHTML = "";
+  out.lines.forEach(function(line) {
+    var div = document.createElement("div");
+    if (line.cls) div.className = line.cls;
+    div.textContent = line.text;
+    lines.appendChild(div);
+  });
+}
+
+function startExperience() {
+  initAudio();
+  playChime();
+  setScreen("curtains", false);
+  setTimeout(function() { document.getElementById("curtainText").classList.add("visible"); }, 400);
+  setTimeout(function() { document.getElementById("curtainContainer").classList.add("curtains-open"); }, 1400);
+  setTimeout(function() {
+    setScreen("question", false);
+    renderQuestion(0);
+  }, 3200);
+}
+
+bindTap(document.getElementById("btnBegin"), startExperience);
+bindTap(document.getElementById("btnBack"), function() {
+  playClick();
+  if (qIndex > 0) renderQuestion(qIndex - 1);
+});
+bindTap(document.getElementById("choiceA"), function() { choose("A"); });
+bindTap(document.getElementById("choiceB"), function() { choose("B"); });
+bindTap(document.getElementById("btnAgain"), function() {
+  playClick();
+  answers = { q1: null, q2: null, q3: null };
+  qIndex = 0;
+  setScreen("hypnosis", false);
+});
+bindTap(document.getElementById("btnFull"), function() {
+  playChime();
+  window.location.href = FULL_REPORT_URL;
+});
+bindTap(document.getElementById("audioToggle"), function() {
+  audioEnabled = !audioEnabled;
+  document.getElementById("audioToggle").innerHTML = audioEnabled ? "&#128266;" : "&#128263;";
+  if (audioEnabled) { initAudio(); playChime(); }
+});
+
+document.addEventListener("pointerdown", function() { if (!audioCtx) initAudio(); }, { once: true });
+
+// Initialize visual defaults and active scene so the page works standalone.
+document.addEventListener('DOMContentLoaded', function() {
+  try {
+    if (typeof screens !== 'undefined' && screens.hypnosis) activeScene = screens.hypnosis;
+    var spiral = document.getElementById('spiralBg');
+    var machine = document.getElementById('machineBg');
+    var card = document.getElementById('cardBg');
+    var left = document.getElementById('curtainLeft');
+    var right = document.getElementById('curtainRight');
+    
+    // Load images from assets folder with fallback gradients.
+    if (spiral) {
+      spiral.style.backgroundImage = 'url(./assets/spiral.jpg)';
+      spiral.style.backgroundSize = 'cover';
+      spiral.style.backgroundPosition = 'center';
+      spiral.style.backgroundColor = '#000';
+    }
+    if (machine) {
+      machine.style.backgroundImage = 'url(./assets/machine.jpg)';
+      machine.style.backgroundSize = 'cover';
+      machine.style.backgroundPosition = 'center';
+      machine.style.backgroundColor = '#0a0505';
+    }
+    if (card) {
+      card.style.backgroundImage = 'url(./assets/tarot.webp)';
+      card.style.backgroundSize = 'cover';
+      card.style.backgroundPosition = 'center';
+    }
+    if (left) {
+      left.style.backgroundImage = 'url(./assets/curtains.webp)';
+      left.style.backgroundSize = 'cover';
+      left.style.backgroundPosition = 'left center';
+    }
+    if (right) {
+      right.style.backgroundImage = 'url(./assets/curtains.webp)';
+      right.style.backgroundSize = 'cover';
+      right.style.backgroundPosition = 'right center';
+    }
+    var bd = document.getElementById('blackout');
+    if (bd) setTimeout(function(){ bd.classList.add('hide'); }, 80);
+  } catch (e) { /* defensive: nothing fatal */ }
+});
+
+function preloadAll(images, done) {
+  var loaded = 0;
+  images = images || [];
+  if (!images.length) return done && done();
+  images.forEach(function(src) {
+    var img = new Image();
+    img.onload = img.onerror = function() {
+      loaded++;
+      if (loaded === images.length && done) done();
+    };
+    img.src = src;
+  });
+}
+
+
+</script>
+</body>
+</html>
