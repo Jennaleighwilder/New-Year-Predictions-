@@ -433,7 +433,7 @@ bindTap(document.getElementById("btnAgain"), function() {
 });
 bindTap(document.getElementById("btnFull"), function() {
   playChime();
-  window.location.href = FULL_REPORT_URL;
+  setTimeout(function() { window.location.href = FULL_REPORT_URL; }, 200);
 });
 bindTap(document.getElementById("audioToggle"), function() {
   audioEnabled = !audioEnabled;
